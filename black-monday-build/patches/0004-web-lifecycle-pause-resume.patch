@@ -1,0 +1,27 @@
+From: BLACK_MONDAY_WEB
+Subject: [PATCH] ui_js: expose VM pause/resume for browser lifecycle handling
+
+Pinned upstream: jpd002/Play-@83700b2c31e593bc94e845b4b31b797be84dda59
+
+--- a/Source/ui_js/Main.cpp
++++ b/Source/ui_js/Main.cpp
+@@
+ void clearStats()
+ {
+ 	CStatsManager::GetInstance().ClearStats();
+ }
++
++void pauseVm()
++{
++	if(g_virtualMachine) g_virtualMachine->Pause();
++}
++
++void resumeVm()
++{
++	if(g_virtualMachine) g_virtualMachine->Resume();
++}
+@@
+ 	function("clearStats", &clearStats);
++	function("pauseVm", &pauseVm);
++	function("resumeVm", &resumeVm);
+ }
