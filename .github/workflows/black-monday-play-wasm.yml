@@ -43,8 +43,10 @@ jobs:
       - name: Apply Black Monday web transforms
         run: |
           python3 black-monday-build/apply_patches.py play
+          python3 black-monday-build/apply_renderer_patch.py play
           git -C play diff --check
           git -C play diff -- Source/input/PH_GenericInput.h Source/input/PH_GenericInput.cpp Source/ui_js/Main.cpp Source/ui_js/CMakeLists.txt > black-monday-build/APPLIED_DIFF.patch
+          grep -q 'setGsResolutionFactor' play/Source/ui_js/Main.cpp
 
       - name: Configure WebAssembly build
         working-directory: play
@@ -67,6 +69,7 @@ jobs:
           cp "$PLAY_WASM" artifact/Play.wasm
           cp black-monday-build/APPLIED_DIFF.patch artifact/APPLIED_DIFF.patch
           node --check artifact/Play.js
+          grep -q 'setGsResolutionFactor' artifact/Play.js
           {
             echo "play_commit=$PLAY_COMMIT"
             echo "emsdk_version=$EMSDK_VERSION"
