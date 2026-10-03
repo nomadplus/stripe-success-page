@@ -49,7 +49,8 @@ jobs:
           git -C play diff -- Source/input/PH_GenericInput.h Source/input/PH_GenericInput.cpp Source/ui_js/Main.cpp Source/ui_js/CMakeLists.txt > black-monday-build/APPLIED_DIFF.patch
           grep -q 'setGsResolutionFactor' play/Source/ui_js/Main.cpp
           grep -q 'function("saveState"' play/Source/ui_js/Main.cpp
-          grep -q 'function("loadState"' play/Source/ui_js/Main.cpp
+          grep -q 'function("beginLoadState"' play/Source/ui_js/Main.cpp
+          grep -q 'function("pollLoadState"' play/Source/ui_js/Main.cpp
 
       - name: Configure WebAssembly build
         working-directory: play
@@ -74,7 +75,8 @@ jobs:
           node --check artifact/Play.js
           grep -q 'setGsResolutionFactor' artifact/APPLIED_DIFF.patch
           grep -q 'saveState' artifact/APPLIED_DIFF.patch
-          grep -q 'loadState' artifact/APPLIED_DIFF.patch
+          grep -q 'beginLoadState' artifact/APPLIED_DIFF.patch
+          grep -q 'pollLoadState' artifact/APPLIED_DIFF.patch
           {
             echo "play_commit=$PLAY_COMMIT"
             echo "emsdk_version=$EMSDK_VERSION"
