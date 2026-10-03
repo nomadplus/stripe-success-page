@@ -1,0 +1,88 @@
+name: Black Monday Play WASM
+
+on:
+  push:
+    branches:
+      - black-monday-web-build
+    paths:
+      - '.github/workflows/black-monday-play-wasm.yml'
+      - 'black-monday-build/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PLAY_COMMIT: 83700b2c31e593bc94e845b4b31b797be84dda59
+      EMSDK_VERSION: 4.0.1
+    steps:
+      - name: Checkout build harness
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: emscripten-core/setup-emsdk@v16
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+
+      - name: Install Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Checkout pinned Play source
+        run: |
+          git clone --recurse-submodules https://github.com/jpd002/Play-.git play
+          git -C play checkout --force "$PLAY_COMMIT"
+          git -C play submodule update --init --recursive --force
+          test "$(git -C play rev-parse HEAD)" = "$PLAY_COMMIT"
+
+      - name: Apply Black Monday web transforms
+        run: |
+          python3 black-monday-build/apply_patches.py play
+          git -C play diff --check
+          git -C play diff -- Source/input/PH_GenericInput.h Source/input/PH_GenericInput.cpp Source/ui_js/Main.cpp Source/ui_js/CMakeLists.txt > black-monday-build/APPLIED_DIFF.patch
+
+      - name: Configure WebAssembly build
+        working-directory: play
+        run: |
+          emcc --version
+          emcmake cmake --preset wasm-ninja
+
+      - name: Build Play WebAssembly core
+        working-directory: play
+        run: cmake --build --preset wasm-ninja-release --parallel 2
+
+      - name: Stage and verify core
+        run: |
+          mkdir -p artifact
+          PLAY_JS="$(find play/build_cmake/build/wasm-ninja -type f -path '*/Release/Play.js' -print -quit)"
+          PLAY_WASM="$(find play/build_cmake/build/wasm-ninja -type f -path '*/Release/Play.wasm' -print -quit)"
+          test -n "$PLAY_JS" -a -f "$PLAY_JS"
+          test -n "$PLAY_WASM" -a -f "$PLAY_WASM"
+          cp "$PLAY_JS" artifact/Play.js
+          cp "$PLAY_WASM" artifact/Play.wasm
+          cp black-monday-build/APPLIED_DIFF.patch artifact/APPLIED_DIFF.patch
+          node --check artifact/Play.js
+          {
+            echo "play_commit=$PLAY_COMMIT"
+            echo "emsdk_version=$EMSDK_VERSION"
+            echo "workflow_commit=$GITHUB_SHA"
+            echo "built_utc=$(date -u +%FT%TZ)"
+            echo "play_js_bytes=$(stat -c %s artifact/Play.js)"
+            echo "play_wasm_bytes=$(stat -c %s artifact/Play.wasm)"
+          } > artifact/BUILD_INFO.txt
+          sha256sum artifact/Play.js artifact/Play.wasm artifact/APPLIED_DIFF.patch > artifact/SHA256SUMS.txt
+          cat artifact/BUILD_INFO.txt
+          cat artifact/SHA256SUMS.txt
+
+      - name: Upload browser core
+        uses: actions/upload-artifact@v4
+        with:
+          name: black-monday-play-wasm
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 7
