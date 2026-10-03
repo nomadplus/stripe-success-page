@@ -1,0 +1,6 @@
+--- a/Source/ui_js/CMakeLists.txt
++++ b/Source/ui_js/CMakeLists.txt
+@@
+ target_link_options(Play PRIVATE "-sFORCE_FILESYSTEM")
++target_link_options(Play PRIVATE "-lidbfs.js")
+ target_link_options(Play PRIVATE "-sALLOW_TABLE_GROWTH")
