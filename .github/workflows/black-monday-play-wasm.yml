@@ -69,7 +69,7 @@ jobs:
           cp "$PLAY_WASM" artifact/Play.wasm
           cp black-monday-build/APPLIED_DIFF.patch artifact/APPLIED_DIFF.patch
           node --check artifact/Play.js
-          grep -q 'setGsResolutionFactor' artifact/Play.js
+          grep -q 'setGsResolutionFactor' artifact/APPLIED_DIFF.patch
           {
             echo "play_commit=$PLAY_COMMIT"
             echo "emsdk_version=$EMSDK_VERSION"
