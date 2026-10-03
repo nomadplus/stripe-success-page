@@ -1,0 +1,27 @@
+From: BLACK_MONDAY_WEB
+Subject: [PATCH] ui_js: expose explicit EE frequency scale hook for mobile profiling
+
+Pinned upstream: jpd002/Play-@83700b2c31e593bc94e845b4b31b797be84dda59
+
+This does not change the default 1:1 PS2 timing. It only exposes Play!'s existing
+CPS2VM::SetEeFrequencyScale API so the host can run opt-in compatibility/performance
+experiments after Black Monday has a verified baseline.
+
+--- a/Source/ui_js/Main.cpp
++++ b/Source/ui_js/Main.cpp
+@@
+ void clearStats()
+ {
+ 	CStatsManager::GetInstance().ClearStats();
+ }
++
++void setEeFrequencyScale(unsigned int numerator, unsigned int denominator)
++{
++	if(!g_virtualMachine) return;
++	if((numerator == 0) || (denominator == 0)) return;
++	g_virtualMachine->SetEeFrequencyScale(numerator, denominator);
++}
+@@
+ 	function("clearStats", &clearStats);
++	function("setEeFrequencyScale", &setEeFrequencyScale);
+ }
