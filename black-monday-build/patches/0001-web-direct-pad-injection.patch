@@ -1,0 +1,119 @@
+From: BLACK_MONDAY_WEB
+Subject: [PATCH v2] ui_js: direct pad overrides for touch/gamepad hosts
+
+Pinned upstream: jpd002/Play-@83700b2c31e593bc94e845b4b31b797be84dda59
+
+Rationale: CSimulatedAxisBinding::SetValue() discards the supplied value and only
+recentres the simulated axis. Keep upstream keyboard bindings intact and layer a
+thread-safe direct-value override in CPH_GenericInput instead.
+
+--- a/Source/input/PH_GenericInput.h
++++ b/Source/input/PH_GenericInput.h
+@@
+ #pragma once
++#include <array>
++#include <atomic>
+ #include "PadHandler.h"
+ #include "InputBindingManager.h"
+@@
+ public:
+-	CPH_GenericInput() = default;
++	CPH_GenericInput();
+ 	virtual ~CPH_GenericInput() = default;
+ 
+ 	void Update(uint8*) override;
++	void SetDirectInputValue(uint32, PS2::CControllerInfo::BUTTON, uint32);
++	void ClearDirectInputValue(uint32, PS2::CControllerInfo::BUTTON);
++	void ClearDirectInputValues();
+@@
+ private:
++	static constexpr uint32 DIRECT_INPUT_DISABLED = 0x100;
++	std::array<std::array<std::atomic<uint32>, PS2::CControllerInfo::MAX_BUTTONS>, CInputBindingManager::MAX_PADS> m_directInputValues;
+ 	CInputBindingManager m_bindingManager;
+ };
+--- a/Source/input/PH_GenericInput.cpp
++++ b/Source/input/PH_GenericInput.cpp
+@@
+ #include <array>
+ #include <utility>
+ 
++CPH_GenericInput::CPH_GenericInput()
++{
++	ClearDirectInputValues();
++}
++
+ void CPH_GenericInput::Update(uint8* ram)
+@@
+-				const auto& binding = m_bindingManager.GetBinding(pad, button);
+-				if(!binding) continue;
+-				uint32 value = binding->GetValue();
++				uint32 value = m_directInputValues[pad][buttonIdx].load(std::memory_order_relaxed);
++				if(value == DIRECT_INPUT_DISABLED)
++				{
++					const auto& binding = m_bindingManager.GetBinding(pad, button);
++					if(!binding) continue;
++					value = binding->GetValue();
++				}
+@@
+ }
++
++void CPH_GenericInput::SetDirectInputValue(uint32 pad, PS2::CControllerInfo::BUTTON button, uint32 value)
++{
++	if(pad >= CInputBindingManager::MAX_PADS) return;
++	if(button >= PS2::CControllerInfo::MAX_BUTTONS) return;
++	if(value > 0xFF) value = 0xFF;
++	m_directInputValues[pad][button].store(value, std::memory_order_relaxed);
++}
++
++void CPH_GenericInput::ClearDirectInputValue(uint32 pad, PS2::CControllerInfo::BUTTON button)
++{
++	if(pad >= CInputBindingManager::MAX_PADS) return;
++	if(button >= PS2::CControllerInfo::MAX_BUTTONS) return;
++	m_directInputValues[pad][button].store(DIRECT_INPUT_DISABLED, std::memory_order_relaxed);
++}
++
++void CPH_GenericInput::ClearDirectInputValues()
++{
++	for(auto& pad : m_directInputValues)
++	{
++		for(auto& value : pad) value.store(DIRECT_INPUT_DISABLED, std::memory_order_relaxed);
++	}
++}
+--- a/Source/ui_js/Main.cpp
++++ b/Source/ui_js/Main.cpp
+@@
+ void clearStats()
+ {
+ 	CStatsManager::GetInstance().ClearStats();
+ }
++
++void setPadValue(unsigned int pad, unsigned int button, unsigned int value)
++{
++	if(!g_virtualMachine) return;
++	if(button >= PS2::CControllerInfo::MAX_BUTTONS) return;
++	auto padHandler = static_cast<CPH_GenericInput*>(g_virtualMachine->GetPadHandler());
++	if(!padHandler) return;
++	padHandler->SetDirectInputValue(pad, static_cast<PS2::CControllerInfo::BUTTON>(button), value);
++}
++
++void clearPadValue(unsigned int pad, unsigned int button)
++{
++	if(!g_virtualMachine) return;
++	if(button >= PS2::CControllerInfo::MAX_BUTTONS) return;
++	auto padHandler = static_cast<CPH_GenericInput*>(g_virtualMachine->GetPadHandler());
++	if(!padHandler) return;
++	padHandler->ClearDirectInputValue(pad, static_cast<PS2::CControllerInfo::BUTTON>(button));
++}
++
++void clearPadValues()
++{
++	if(!g_virtualMachine) return;
++	auto padHandler = static_cast<CPH_GenericInput*>(g_virtualMachine->GetPadHandler());
++	if(padHandler) padHandler->ClearDirectInputValues();
++}
+@@
+ 	function("clearStats", &clearStats);
++	function("setPadValue", &setPadValue);
++	function("clearPadValue", &clearPadValue);
++	function("clearPadValues", &clearPadValues);
+ }
